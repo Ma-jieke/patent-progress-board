@@ -1,4 +1,4 @@
-import {WORKFLOWS,CATEGORIES,AGENCIES,isWorkflow,isCategory,type Workflow,type Category} from '../../shared/workflows';
+import {WORKFLOWS,isWorkflow,isCategory,type Workflow,type Category} from '../../shared/workflows';
 export type Data={title:string;category:Category;workflow:Workflow;stage:number;agency:string;inventors:string;owner:string;note:string;owners:Record<string,string>;version?:number};
 export const normalFlow=(row:{workflow:string;category?:string})=>row.category==='software'?'software':row.workflow;
 export const expose=(row:any,owners:Record<string,string>={})=>({...row,workflow:normalFlow(row),category:row.category|| (row.workflow==='utility'?'utility':'invention'),agency:row.agency||'',inventors:row.inventors||'',owners,version:row.version||0});
@@ -11,7 +11,7 @@ export function readData(raw:unknown):Data{
  if(!Number.isInteger(x.stage)||Number(x.stage)<0||Number(x.stage)>=WORKFLOWS[flow].stages.length)throw new Error('节点不存在');
  const safe=(k:string,max:number,required=false)=>{if(typeof x[k]!=='string')throw new Error(k+' 必须是文本');const v=(x[k] as string).trim();if(v.length>max||required&&!v)throw new Error(k+' 长度或内容不符合要求');return v};
  const title=safe('title',180,true),agency=safe('agency',90),inventors=safe('inventors',500),owner=safe('owner',60),note=safe('note',1200);
- if(cat!=='software'&&!AGENCIES.includes(agency as any))throw new Error('请选择专利代理机构');
+ if(cat!=='software'&&!agency)throw new Error('请选择或填写专利代理机构');
  let owners:Record<string,string>={};
  if(x.owners!==undefined){
   if(!x.owners||Array.isArray(x.owners)||typeof x.owners!=='object'||Object.keys(x.owners).length>60)throw new Error('节点负责人格式不正确');

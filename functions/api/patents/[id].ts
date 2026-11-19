@@ -31,3 +31,30 @@ export const onRequestPatch:PagesFunction<Env,'id'>=async({request,env,params})=
   return json({patent:expose({...old,...p,id,updated_at:at,version:old.version+1},p.owners)});
  }catch(e){console.error(e);return err('修改失败，请检查数据库迁移是否完成',500)}
 };
+
+/**
+ * Permanently delete a patent and its dependent stage-owner/history rows
+ * (both child tables use ON DELETE CASCADE).
+ * Requires the same administrator session and same-origin validation as PATCH.
+ */
+export const onRequestDelete:PagesFunction<Env,'id'>=async({request,env,params})=>{
+ if(!mutation(request))return err('请求来源无效',403);
+ if(!(await admin(request,env)))return err('请先登录',401);
+ if(!env.DB)return err('数据库尚未绑定',503);
+ let data:unknown;
+ try{data=await body(request)}
+ catch(e){return err(e instanceof Error?e.message:'请求无效',400)}
+ if(!data||typeof data!=='object')return err('删除确认信息无效');
+ const {version,title,confirmation}=data as Record<string,unknown>;
+ if(confirmation!=='DELETE')return err('需要明确确认删除',400);
+ if(typeof title!=='string'||!title||typeof version!=='number'||!Number.isInteger(version)||version<0)return err('删除信息不完整',400);
+ const id=String(params.id);
+ try{
+  const old=await env.DB.prepare('SELECT title, version FROM patents WHERE id=?').bind(id).first<{title:string;version:number}>();
+  if(!old)return err('记录不存在或已删除',404);
+  if(old.version!==version||old.title!==title)return err('记录已被修改，请刷新后再删除',409);
+  const result=await env.DB.prepare('DELETE FROM patents WHERE id=? AND version=? AND title=?').bind(id,version,title).run();
+  if(!result.meta.changes)return err('删除失败：数据已发生变化，请刷新',409);
+  return json({deleted:true,id});
+ }catch(e){console.error('delete patent failed',e);return err('删除失败，请稍后重试',500)}
+};
